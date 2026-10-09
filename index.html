@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="is">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Framburðaræfing: Spurningar til kennara</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f4f8;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .app-container {
+            background-color: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 600px;
+            width: 90%;
+        }
+        h1 {
+            color: #2c3e50;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        .progress {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-bottom: 20px;
+        }
+        .target-phrase {
+            font-size: 28px;
+            font-weight: bold;
+            color: #3498db;
+            min-height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+        button {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            box-shadow: 0 4px 6px rgba(231, 76, 60, 0.3);
+        }
+        button:hover {
+            background-color: #c0392b;
+        }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        .feedback-area {
+            margin-top: 30px;
+            min-height: 60px;
+        }
+        .recognized-text {
+            font-size: 18px;
+            font-style: italic;
+            color: #555;
+            margin-bottom: 10px;
+        }
+        .status-msg {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .success { color: #27ae60; }
+        .error { color: #e74c3c; }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <h1>Spurningar til kennara</h1>
+    <div class="progress" id="progressText">Spurning 1 af 10</div>
+    
+    <div class="target-phrase" id="targetPhrase">Hleður setningu...</div>
+    
+    <button id="micBtn">🎤 Talaðu núna</button>
+    
+    <div class="feedback-area">
+        <div class="recognized-text" id="recognizedText"></div>
+        <div class="status-msg" id="statusMsg"></div>
+    </div>
+</div>
+
+<script>
+    const phrases = [
+        "Má ég fara á klósettið?",
+        "Hvenær eigum við að skila þessu verkefni?",
+        "Geturðu útskýrt þetta aftur?",
+        "Hvar finn ég námsefnið?",
+        "Má ég vinna með öðrum?",
+        "Verður þetta efni á prófinu?",
+        "Hvaða blaðsíðu erum við á í bókinni?",
+        "Má ég nota tölvu?",
+        "Hvernig á ég að byrja á þessu?",
+        "Geturðu hjálpað mér aðeins?"
+    ];
+
+    let currentIndex = 0;
+
+    const targetPhraseEl = document.getElementById('targetPhrase');
+    const micBtn = document.getElementById('micBtn');
+    const recognizedTextEl = document.getElementById('recognizedText');
+    const statusMsgEl = document.getElementById('statusMsg');
+    const progressTextEl = document.getElementById('progressText');
+
+    // Talgreinir frumstilltur
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition;
+
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.lang = 'is-IS';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = function() {
+            micBtn.textContent = "Hlustar...";
+            micBtn.style.backgroundColor = "#e67e22";
+            statusMsgEl.textContent = "";
+            recognizedTextEl.textContent = "";
+        };
+
+        recognition.onspeechend = function() {
+            recognition.stop();
+            micBtn.textContent = "🎤 Talaðu núna";
+            micBtn.style.backgroundColor = "#e74c3c";
+        };
+
+        recognition.onresult = function(event) {
+            let rawTranscript = event.results[0][0].transcript.trim();
+            
+            // 1. Byrja alltaf á stórum staf
+            let formattedTranscript = rawTranscript.charAt(0).toUpperCase() + rawTranscript.slice(1);
+            
+            // 2. Bæta við spurningarmerki ef það vantar
+            if (!formattedTranscript.endsWith('?')) {
+                formattedTranscript += '?';
+            }
+
+            recognizedTextEl.textContent = "Tölvan heyrði: " + formattedTranscript;
+
+            // Fjarlægja greinarmerki og gera lágstafi til að gera samanburðinn vægari
+            let cleanTranscript = formattedTranscript.toLowerCase().replace(/[^a-záðéíóúýþæö]/g, '').trim();
+            let cleanTarget = phrases[currentIndex].toLowerCase().replace(/[^a-záðéíóúýþæö]/g, '').trim();
+
+            if (cleanTranscript === cleanTarget) {
+                statusMsgEl.textContent = "✅ Rétt! Vel gert.";
+                statusMsgEl.className = "status-msg success";
+                micBtn.disabled = true;
+                
+                setTimeout(() => {
+                    currentIndex++;
+                    loadNextPhrase();
+                    micBtn.disabled = false;
+                }, 2000);
+            } else {
+                statusMsgEl.textContent = "❌ Reyndu aftur.";
+                statusMsgEl.className = "status-msg error";
+            }
+        };
+
+        recognition.onerror = function(event) {
+            statusMsgEl.textContent = "Villa við hlustun (" + event.error + "). Reyndu aftur.";
+            statusMsgEl.className = "status-msg error";
+            micBtn.textContent = "🎤 Talaðu núna";
+            micBtn.style.backgroundColor = "#e74c3c";
+        };
+
+        micBtn.addEventListener('click', () => {
+            recognition.start();
+        });
+
+    } else {
+        targetPhraseEl.textContent = "Talgreining virkar ekki í þessum vafra. Notaðu Chrome eða Edge.";
+        micBtn.style.display = "none";
+    }
+
+    function loadNextPhrase() {
+        if (currentIndex < phrases.length) {
+            targetPhraseEl.textContent = phrases[currentIndex];
+            progressTextEl.textContent = `Spurning ${currentIndex + 1} af ${phrases.length}`;
+            recognizedTextEl.textContent = "";
+            statusMsgEl.textContent = "";
+        } else {
+            targetPhraseEl.textContent = "🎉 Frábært! Þú kláraðir allar spurningarnar.";
+            progressTextEl.textContent = "Æfingu lokið";
+            micBtn.style.display = "none";
+            recognizedTextEl.textContent = "";
+            statusMsgEl.textContent = "";
+        }
+    }
+
+    // Byrja forritið
+    loadNextPhrase();
+</script>
+
+</body>
+</html>
